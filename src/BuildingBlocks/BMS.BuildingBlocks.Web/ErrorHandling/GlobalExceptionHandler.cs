@@ -54,7 +54,8 @@ internal sealed class GlobalExceptionHandler(IProblemDetailsService problemDetai
 
         if (problem.Status == StatusCodes.Status500InternalServerError)
         {
-            logger.LogError(exception, "Unhandled exception while processing {Method} {Path}", httpContext.Request.Method, httpContext.Request.Path);
+            logger.LogError(exception, "Unhandled exception while processing {Method} {Path}",
+                SanitizeForLog(httpContext.Request.Method), SanitizeForLog(httpContext.Request.Path.ToString()));
         }
 
         httpContext.Response.StatusCode = problem.Status!.Value;
@@ -65,4 +66,7 @@ internal sealed class GlobalExceptionHandler(IProblemDetailsService problemDetai
             Exception = exception,
         });
     }
+
+    private static string SanitizeForLog(string value) =>
+        value.Replace("\r", string.Empty, StringComparison.Ordinal).Replace("\n", string.Empty, StringComparison.Ordinal);
 }
