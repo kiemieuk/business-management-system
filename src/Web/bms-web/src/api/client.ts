@@ -45,17 +45,23 @@ const API_BASE = '/api'
 const AUTH_SCHEME = 'Bearer'
 
 type TokenProvider = () => string | null
-type UnauthorizedHandler = () => void
+/** Receives the token that was rejected with 401 (null if the request had none). */
+type UnauthorizedHandler = (rejectedToken: string | null) => void
 
 let tokenProvider: TokenProvider = () => null
 let unauthorizedHandler: UnauthorizedHandler = () => {}
 
+/**
+ * Configure how the client obtains the access token and reacts to 401 responses.
+ * The token provider must be registered at module load (not in a React effect):
+ * child components fire their requests in effects that run before their parents' effects.
+ */
 export function configureApiClient(options: {
-  getToken: TokenProvider
-  onUnauthorized: UnauthorizedHandler
+  getToken?: TokenProvider
+  onUnauthorized?: UnauthorizedHandler
 }): void {
-  tokenProvider = options.getToken
-  unauthorizedHandler = options.onUnauthorized
+  if (options.getToken) tokenProvider = options.getToken
+  if (options.onUnauthorized) unauthorizedHandler = options.onUnauthorized
 }
 
 export interface RequestOptions {
@@ -84,9 +90,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (options.body !== undefined) headers['Content-Type'] = 'application/json'
 
-  if (!options.anonymous) {
-    const token = tokenProvider()
-    if (token) headers.Authorization = `${AUTH_SCHEME} ${token}`
+  const token = options.anonymous ? null : tokenProvider()
+  if (token) {
+    headers.Authorization = `${AUTH_SCHEME} ${token}`
   }
 
   let response: Response
@@ -106,7 +112,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   if (!response.ok) {
     if (response.status === 401 && !options.anonymous) {
-      unauthorizedHandler()
+      unauthorizedHandler(token)
     }
     const problem = data && typeof data === 'object' ? (data as ProblemDetails) : null
     const fallback =

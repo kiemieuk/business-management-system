@@ -540,3 +540,8 @@ input:disabled {
     width: 100%;
   }
 }
+
+.hint {
+  font-size: 0.8rem;
+  align-self: center;
+}

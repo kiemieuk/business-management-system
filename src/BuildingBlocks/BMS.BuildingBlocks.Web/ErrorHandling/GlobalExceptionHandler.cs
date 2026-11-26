@@ -33,6 +33,12 @@ internal sealed class GlobalExceptionHandler(IProblemDetailsService problemDetai
                 Title = "Resource not found.",
                 Detail = exception.Message,
             },
+            ForbiddenException => new ProblemDetails
+            {
+                Status = StatusCodes.Status403Forbidden,
+                Title = "Forbidden.",
+                Detail = exception.Message,
+            },
             ConflictException => new ProblemDetails
             {
                 Status = StatusCodes.Status409Conflict,

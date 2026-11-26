@@ -5,6 +5,10 @@ import type { UserProfile } from '../types/identity'
 import { AuthContext, type AuthContextValue } from './authContextValue'
 import { clearAuth, getAccessToken, loadAuth, saveAuth } from './authStorage'
 
+// Registered at module load so requests fired from child effects on first render
+// (which run before this provider's effects) already carry the token.
+configureApiClient({ getToken: getAccessToken })
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(() => loadAuth()?.user ?? null)
 
@@ -15,7 +19,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // On 401 the stored session is cleared; ProtectedRoute then redirects to /login.
-    configureApiClient({ getToken: getAccessToken, onUnauthorized: logout })
+    // A 401 for a token that is no longer current (e.g. a stale request after re-login) is ignored.
+    configureApiClient({
+      onUnauthorized: (rejectedToken) => {
+        if (rejectedToken && rejectedToken === getAccessToken()) logout()
+      },
+    })
   }, [logout])
 
   // Expire the session client-side when the token lifetime ends.

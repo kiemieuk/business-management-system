@@ -5,6 +5,13 @@ import { ErrorAlert } from '../../components/ErrorAlert'
 import { Modal } from '../../components/Modal'
 import { Permissions, type PermissionDto, type RoleDto } from '../../types/identity'
 
+const ADMINISTRATOR_ROLE = 'administrator'
+
+/** The Administrator role always holds every permission; the backend rejects changes to it. */
+function isAdministratorRole(role: RoleDto): boolean {
+  return role.name.trim().toLowerCase() === ADMINISTRATOR_ROLE
+}
+
 type Dialog =
   | { kind: 'create' }
   | { kind: 'edit'; role: RoleDto }
@@ -131,13 +138,19 @@ export function RolesPage() {
                           <button type="button" className="btn btn-sm" onClick={() => setDialog({ kind: 'edit', role: r })}>
                             Edit
                           </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => setDialog({ kind: 'permissions', role: r })}
-                          >
-                            Permissions
-                          </button>
+                          {isAdministratorRole(r) ? (
+                            <span className="muted hint" title="The Administrator role cannot be changed">
+                              Always has all permissions
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => setDialog({ kind: 'permissions', role: r })}
+                            >
+                              Permissions
+                            </button>
+                          )}
                         </>
                       )}
                       {canDelete && !r.isSystem && (
@@ -168,7 +181,7 @@ export function RolesPage() {
       {dialog?.kind === 'edit' && (
         <EditRoleDialog role={dialog.role} onClose={closeDialog} onSaved={(r) => onSaved(`Role "${r.name}" updated.`, r)} />
       )}
-      {dialog?.kind === 'permissions' && (
+      {dialog?.kind === 'permissions' && !isAdministratorRole(dialog.role) && (
         <RolePermissionsDialog
           role={dialog.role}
           permissions={permissions}
