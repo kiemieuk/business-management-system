@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BMS.Identity.Domain\BMS.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BMS.BuildingBlocks.Contracts\BMS.BuildingBlocks.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BMS.BuildingBlocks.Web\BMS.BuildingBlocks.Web.csproj" />
+  </ItemGroup>
+
+</Project>

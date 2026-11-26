@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BMS.BuildingBlocks.Domain\BMS.BuildingBlocks.Domain.csproj" />
+    <ProjectReference Include="..\BMS.BuildingBlocks.Contracts\BMS.BuildingBlocks.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

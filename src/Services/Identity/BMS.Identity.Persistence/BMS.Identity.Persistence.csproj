@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BMS.Identity.Application\BMS.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BMS.BuildingBlocks.Persistence\BMS.BuildingBlocks.Persistence.csproj" />
+  </ItemGroup>
+
+</Project>
