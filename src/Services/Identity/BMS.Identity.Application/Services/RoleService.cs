@@ -2,6 +2,7 @@ using BMS.BuildingBlocks.Contracts.Authorization;
 using BMS.BuildingBlocks.Domain.Abstractions;
 using BMS.BuildingBlocks.Domain.Exceptions;
 using BMS.Identity.Application.Contracts;
+using BMS.Identity.Application.Security;
 using BMS.Identity.Domain.Roles;
 
 namespace BMS.Identity.Application.Services;
@@ -23,7 +24,7 @@ public interface IRoleService
     IReadOnlyList<PermissionDto> ListPermissions();
 }
 
-public sealed class RoleService(IRoleRepository roles, IUnitOfWork unitOfWork) : IRoleService
+public sealed class RoleService(IRoleRepository roles, IUnitOfWork unitOfWork, PrivilegeGuard privilegeGuard) : IRoleService
 {
     public async Task<IReadOnlyList<RoleDto>> ListAsync(CancellationToken cancellationToken = default)
     {
@@ -45,8 +46,11 @@ public sealed class RoleService(IRoleRepository roles, IUnitOfWork unitOfWork) :
             throw new ConflictException($"Role '{request.Name}' already exists.");
         }
 
+        var permissions = ValidatePermissions(request.Permissions ?? []);
+        await privilegeGuard.EnsureCanGrantPermissionsAsync(permissions, cancellationToken);
+
         var role = Role.Create(request.Name, request.Description);
-        role.SetPermissions(ValidatePermissions(request.Permissions ?? []));
+        role.SetPermissions(permissions);
 
         await roles.AddAsync(role, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -56,6 +60,7 @@ public sealed class RoleService(IRoleRepository roles, IUnitOfWork unitOfWork) :
     public async Task<RoleDto> UpdateAsync(Guid id, UpdateRoleRequest request, CancellationToken cancellationToken = default)
     {
         var role = await LoadAsync(id, cancellationToken);
+        await privilegeGuard.EnsureCanManageRoleAsync(role, cancellationToken);
         if (await roles.NameExistsAsync(request.Name, id, cancellationToken))
         {
             throw new ConflictException($"Role '{request.Name}' already exists.");
@@ -74,7 +79,11 @@ public sealed class RoleService(IRoleRepository roles, IUnitOfWork unitOfWork) :
             throw new DomainException("The Administrator role always holds every permission and cannot be modified.");
         }
 
-        role.SetPermissions(ValidatePermissions(request.Permissions));
+        await privilegeGuard.EnsureCanManageRoleAsync(role, cancellationToken);
+        var permissions = ValidatePermissions(request.Permissions);
+        await privilegeGuard.EnsureCanGrantPermissionsAsync(permissions, cancellationToken);
+
+        role.SetPermissions(permissions);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return await GetAsync(id, cancellationToken);
     }
@@ -83,6 +92,7 @@ public sealed class RoleService(IRoleRepository roles, IUnitOfWork unitOfWork) :
     {
         var role = await LoadAsync(id, cancellationToken);
         role.EnsureCanBeDeleted();
+        await privilegeGuard.EnsureCanManageRoleAsync(role, cancellationToken);
 
         var userCount = await roles.CountUsersAsync(id, cancellationToken);
         if (userCount > 0)

@@ -52,8 +52,8 @@ public sealed class AuthService(
         if (!passwordHasher.Verify(request.Password, user.PasswordHash))
         {
             var options = securityOptions.Value;
-            user.RecordFailedLogin(now, options.MaxFailedAccessAttempts, TimeSpan.FromMinutes(options.LockoutMinutes));
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await users.RecordFailedLoginAsync(
+                user.Id, now, options.MaxFailedAccessAttempts, TimeSpan.FromMinutes(options.LockoutMinutes), cancellationToken);
             logger.LogWarning("Failed sign-in for user {UserId}: invalid password", user.Id);
             return null;
         }

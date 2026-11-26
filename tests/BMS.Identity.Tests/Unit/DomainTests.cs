@@ -6,8 +6,6 @@ namespace BMS.Identity.Tests.Unit;
 
 public class DomainTests
 {
-    private static readonly DateTimeOffset Now = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
     [Fact]
     public void System_role_cannot_be_renamed_or_deleted()
     {
@@ -41,19 +39,6 @@ public class DomainTests
         user.SetRoles([b]);
 
         Assert.Equal([b.Id], user.UserRoles.Select(ur => ur.RoleId));
-    }
-
-    [Fact]
-    public void User_is_locked_out_after_max_failed_attempts_and_unlocked_after_duration()
-    {
-        var user = User.Create("jane", "jane@example.com", "Jane", "hash");
-
-        user.RecordFailedLogin(Now, maxFailedAttempts: 2, TimeSpan.FromMinutes(5));
-        Assert.False(user.IsLockedOut(Now));
-
-        user.RecordFailedLogin(Now, maxFailedAttempts: 2, TimeSpan.FromMinutes(5));
-        Assert.True(user.IsLockedOut(Now.AddMinutes(4)));
-        Assert.False(user.IsLockedOut(Now.AddMinutes(6)));
     }
 
     [Fact]

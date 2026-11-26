@@ -30,7 +30,8 @@ public sealed class UserService(
     IRoleRepository roles,
     IUnitOfWork unitOfWork,
     IPasswordHasher passwordHasher,
-    ICurrentUser currentUser) : IUserService
+    ICurrentUser currentUser,
+    PrivilegeGuard privilegeGuard) : IUserService
 {
     public async Task<IReadOnlyList<UserDto>> ListAsync(CancellationToken cancellationToken = default) =>
         [.. (await users.ListAsync(cancellationToken)).OrderBy(u => u.Username).Select(UserMappings.ToDto)];
@@ -53,7 +54,7 @@ public sealed class UserService(
         }
 
         var roleList = await LoadRolesAsync(request.RoleIds ?? [], cancellationToken);
-        await EnsureCanGrantRolesAsync(roleList, cancellationToken);
+        await privilegeGuard.EnsureCanGrantRolesAsync(roleList, cancellationToken);
 
         var user = User.Create(request.Username, request.Email, request.FullName, passwordHasher.Hash(request.Password));
         user.SetRoles(roleList);
@@ -67,7 +68,7 @@ public sealed class UserService(
     public async Task<UserDto> UpdateAsync(Guid id, UpdateUserRequest request, CancellationToken cancellationToken = default)
     {
         var user = await LoadAsync(id, cancellationToken);
-        await EnsureCanManageAsync(user, cancellationToken);
+        await privilegeGuard.EnsureCanManageUserAsync(user, cancellationToken);
 
         if (await users.EmailExistsAsync(request.Email, id, cancellationToken))
         {
@@ -101,9 +102,9 @@ public sealed class UserService(
     public async Task<UserDto> AssignRolesAsync(Guid id, AssignRolesRequest request, CancellationToken cancellationToken = default)
     {
         var user = await LoadAsync(id, cancellationToken);
-        await EnsureCanManageAsync(user, cancellationToken);
+        await privilegeGuard.EnsureCanManageUserAsync(user, cancellationToken);
         var newRoles = await LoadRolesAsync(request.RoleIds, cancellationToken);
-        await EnsureCanGrantRolesAsync(newRoles, cancellationToken);
+        await privilegeGuard.EnsureCanGrantRolesAsync(newRoles, cancellationToken);
 
         if (!newRoles.Any(r => r.Name == Role.AdministratorRoleName))
         {
@@ -118,7 +119,7 @@ public sealed class UserService(
     public async Task ResetPasswordAsync(Guid id, ResetPasswordRequest request, CancellationToken cancellationToken = default)
     {
         var user = await LoadAsync(id, cancellationToken);
-        await EnsureCanManageAsync(user, cancellationToken);
+        await privilegeGuard.EnsureCanManageUserAsync(user, cancellationToken);
         PasswordPolicy.Validate(request.NewPassword, nameof(request.NewPassword));
         user.ChangePasswordHash(passwordHasher.Hash(request.NewPassword));
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -132,7 +133,7 @@ public sealed class UserService(
             throw new DomainException("You cannot delete your own account.");
         }
 
-        await EnsureCanManageAsync(user, cancellationToken);
+        await privilegeGuard.EnsureCanManageUserAsync(user, cancellationToken);
 
         await EnsureNotLastAdministratorAsync(user, cancellationToken);
         users.Remove(user);
@@ -153,46 +154,6 @@ public sealed class UserService(
         }
 
         return found;
-    }
-
-    private static bool IsAdministrator(User user) =>
-        user.UserRoles.Any(ur => ur.Role.Name == Role.AdministratorRoleName);
-
-    /// <summary>
-    /// Checks the caller's current roles in the database (not the possibly stale token claims).
-    /// </summary>
-    private async Task<bool> CurrentUserIsAdministratorAsync(CancellationToken cancellationToken)
-    {
-        if (currentUser.UserId is not { } actorId)
-        {
-            return false;
-        }
-
-        var actor = await users.GetByIdAsync(actorId, cancellationToken);
-        return actor is { IsActive: true } && IsAdministrator(actor);
-    }
-
-    /// <summary>
-    /// Prevents privilege escalation: only administrators may manage administrator accounts
-    /// (edit, reset password, change roles, delete).
-    /// </summary>
-    private async Task EnsureCanManageAsync(User target, CancellationToken cancellationToken)
-    {
-        if (IsAdministrator(target) && !await CurrentUserIsAdministratorAsync(cancellationToken))
-        {
-            throw new ForbiddenException("Only administrators can manage administrator accounts.");
-        }
-    }
-
-    /// <summary>
-    /// Prevents privilege escalation: only administrators may grant the Administrator role.
-    /// </summary>
-    private async Task EnsureCanGrantRolesAsync(IEnumerable<Role> rolesToGrant, CancellationToken cancellationToken)
-    {
-        if (rolesToGrant.Any(r => r.Name == Role.AdministratorRoleName) && !await CurrentUserIsAdministratorAsync(cancellationToken))
-        {
-            throw new ForbiddenException("Only administrators can grant the Administrator role.");
-        }
     }
 
     /// <summary>

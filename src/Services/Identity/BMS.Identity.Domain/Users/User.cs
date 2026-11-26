@@ -99,19 +99,6 @@ public sealed class User : AuditableEntity, IAggregateRoot
         ResetLockout();
     }
 
-    /// <summary>
-    /// Records a failed sign-in attempt and locks the account once <paramref name="maxFailedAttempts"/> is reached.
-    /// </summary>
-    public void RecordFailedLogin(DateTimeOffset now, int maxFailedAttempts, TimeSpan lockoutDuration)
-    {
-        AccessFailedCount++;
-        if (maxFailedAttempts > 0 && AccessFailedCount >= maxFailedAttempts)
-        {
-            LockoutEnd = now.Add(lockoutDuration);
-            AccessFailedCount = 0;
-        }
-    }
-
     public void ResetLockout()
     {
         AccessFailedCount = 0;

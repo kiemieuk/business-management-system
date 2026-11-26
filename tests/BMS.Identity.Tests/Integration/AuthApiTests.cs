@@ -87,6 +87,23 @@ public class AuthApiTests(IdentityApiFactory factory) : IClassFixture<IdentityAp
     }
 
     [Fact]
+    public async Task Concurrent_failed_attempts_cannot_bypass_the_lockout()
+    {
+        var admin = await factory.CreateClient().AuthenticateAsync("admin", IdentityApiFactory.AdminPassword);
+        await CreateUserAsync(admin, "racer", "Racer123x");
+
+        var client = factory.CreateClient();
+        var attempts = Enumerable.Range(0, IdentityApiFactory.MaxFailedAccessAttempts * 3)
+            .Select(_ => client.PostAsJsonAsync("/api/identity/auth/login", new LoginRequest("racer", "WrongPassword1")));
+        var responses = await Task.WhenAll(attempts);
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.Unauthorized, r.StatusCode));
+
+        var response = await client.PostAsJsonAsync("/api/identity/auth/login", new LoginRequest("racer", "Racer123x"));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task User_can_change_own_password()
     {
         var admin = await factory.CreateClient().AuthenticateAsync("admin", IdentityApiFactory.AdminPassword);

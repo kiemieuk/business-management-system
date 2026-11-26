@@ -13,6 +13,12 @@ public interface IUserRepository : IRepository<User>
 
     Task<bool> AnyAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Atomically increments the failed sign-in counter in the database and locks the account once
+    /// <paramref name="maxFailedAttempts"/> is reached. Being atomic, concurrent attempts cannot bypass the lockout.
+    /// </summary>
+    Task RecordFailedLoginAsync(Guid userId, DateTimeOffset now, int maxFailedAttempts, TimeSpan lockoutDuration, CancellationToken cancellationToken = default);
+
     /// <summary>Counts active users holding the given role, optionally excluding one user.</summary>
     Task<int> CountActiveUsersInRoleAsync(string roleName, Guid? excludeUserId = null, CancellationToken cancellationToken = default);
 }

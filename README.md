@@ -44,12 +44,12 @@ Each microservice owns its database (the Identity tables live in the `identity` 
 ### Security model
 
 - **Passwords**: PBKDF2 with HMAC-SHA512, 210,000 iterations, 128-bit random salt, constant-time comparison. The hash string stores the algorithm and iteration count so the parameters can be raised later. Password policy: 8–128 characters with upper case, lower case and a digit.
-- **Brute-force protection**: an account locks after `AccountSecurity:MaxFailedAccessAttempts` failed logins (default 5) for `LockoutMinutes` (default 15). Login answers in the same time whether or not the user exists.
+- **Brute-force protection**: an account locks after `AccountSecurity:MaxFailedAccessAttempts` failed logins (default 5) for `LockoutMinutes` (default 15). The failed-attempt counter is updated atomically in the database, so parallel guesses cannot bypass it. Login takes the same time whether or not the user exists.
 - **Role-based access**: users have roles, and roles have permissions (e.g. `identity.users.create`). Endpoints are protected with `[HasPermission(Permissions.Identity.Users.Create)]`. The JWT contains the user's roles and permissions, and the frontend uses them to show or hide menu items and buttons.
 - **System roles**:
   - `Administrator` always holds every permission and cannot be deleted or renamed. The last active administrator cannot be removed or deactivated.
   - `User` is the default role for new users.
-- **No privilege escalation**: only administrators can grant the Administrator role or manage (edit, reset password, change roles, delete) an administrator account. `identity.roles.update` is still a powerful permission, because it decides what a role is allowed to do, so give it only to trusted roles.
+- **No privilege escalation**: a user who is not an administrator can only grant permissions they hold themselves. The same applies to roles they assign or edit, and to users they manage (edit, reset password, change roles, delete). Only administrators can grant the Administrator role or manage administrator accounts.
 - Role and permission changes take effect the next time the user signs in.
 
 ## Getting started (local development)

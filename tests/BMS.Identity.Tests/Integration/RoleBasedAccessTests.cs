@@ -125,6 +125,41 @@ public class RoleBasedAccessTests(IdentityApiFactory factory) : IClassFixture<Id
             new ResetPasswordRequest("Manager456x"))).StatusCode);
     }
 
+    [Fact]
+    public async Task Delegated_managers_cannot_grant_or_take_over_permissions_they_do_not_hold()
+    {
+        var admin = await factory.CreateClient().AuthenticateAsync("admin", IdentityApiFactory.AdminPassword);
+
+        var helpdesk = await PostAsync<RoleDto>(admin, "/api/identity/roles", new CreateRoleRequest("Helpdesk", null,
+            [Permissions.Identity.Users.View, Permissions.Identity.Users.Update, Permissions.Identity.Roles.View, Permissions.Identity.Roles.Update]));
+        var powerful = await PostAsync<RoleDto>(admin, "/api/identity/roles", new CreateRoleRequest("Powerful", null,
+            [Permissions.Identity.Users.Delete, Permissions.Identity.Roles.Delete]));
+        var helper = await PostAsync<UserDto>(admin, "/api/identity/users",
+            new CreateUserRequest("helper", "helper@example.com", "Helper", "Helper123x", [helpdesk.Id]));
+        var boss = await PostAsync<UserDto>(admin, "/api/identity/users",
+            new CreateUserRequest("boss", "boss@example.com", "Boss", "Boss12345x", [powerful.Id]));
+
+        var client = await factory.CreateClient().AuthenticateAsync("helper", "Helper123x");
+
+        // Cannot give themselves a role with permissions they do not hold.
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"/api/identity/users/{helper.Id}/roles",
+            new AssignRolesRequest([helpdesk.Id, powerful.Id]))).StatusCode);
+        // Cannot add permissions they do not hold to their own role, or create such a role.
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"/api/identity/roles/{helpdesk.Id}/permissions",
+            new SetRolePermissionsRequest([.. helpdesk.Permissions, Permissions.Identity.Users.Delete]))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/identity/roles",
+            new CreateRoleRequest("Sneaky", null, [Permissions.Identity.Users.Delete]))).StatusCode);
+        // Cannot take over or modify a user, or a role, holding permissions they lack.
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"/api/identity/users/{boss.Id}/reset-password",
+            new ResetPasswordRequest("Hijacked123x"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"/api/identity/roles/{powerful.Id}/permissions",
+            new SetRolePermissionsRequest([]))).StatusCode);
+
+        // Granting a subset of their own permissions is allowed.
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/identity/roles/{helpdesk.Id}/permissions",
+            new SetRolePermissionsRequest([.. helpdesk.Permissions]))).StatusCode);
+    }
+
     private static async Task<T> PostAsync<T>(HttpClient client, string url, object body)
     {
         var response = await client.PostAsJsonAsync(url, body);

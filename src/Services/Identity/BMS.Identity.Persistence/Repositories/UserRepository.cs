@@ -35,6 +35,21 @@ internal sealed class UserRepository(IdentityDbContext context) : EfRepository<U
 
     public Task<bool> AnyAsync(CancellationToken cancellationToken = default) => Set.AnyAsync(cancellationToken);
 
+    public async Task RecordFailedLoginAsync(Guid userId, DateTimeOffset now, int maxFailedAttempts, TimeSpan lockoutDuration, CancellationToken cancellationToken = default)
+    {
+        await Set.Where(u => u.Id == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount + 1), cancellationToken);
+
+        if (maxFailedAttempts > 0)
+        {
+            var lockoutEnd = now.Add(lockoutDuration);
+            await Set.Where(u => u.Id == userId && u.AccessFailedCount >= maxFailedAttempts)
+                .ExecuteUpdateAsync(
+                    s => s.SetProperty(u => u.LockoutEnd, lockoutEnd).SetProperty(u => u.AccessFailedCount, 0),
+                    cancellationToken);
+        }
+    }
+
     public Task<int> CountActiveUsersInRoleAsync(string roleName, Guid? excludeUserId = null, CancellationToken cancellationToken = default)
     {
         var normalized = Role.Normalize(roleName);
