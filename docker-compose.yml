@@ -1,0 +1,50 @@
+# Full stack: SQL Server + Identity service + API gateway + React web app.
+# Usage: cp .env.example .env && (edit .env) && docker compose up --build
+# Then open http://localhost:8080 and sign in with "admin" / ADMIN_PASSWORD.
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD:?Set SQL_SA_PASSWORD in .env}
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+
+  identity-api:
+    build:
+      context: .
+      dockerfile: src/Services/Identity/BMS.Identity.API/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Database__Provider: SqlServer
+      Database__ConnectionString: Server=sqlserver;Database=bms_identity;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
+      Seed__AdminPassword: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+    depends_on:
+      - sqlserver
+    restart: on-failure
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: src/ApiGateway/BMS.ApiGateway/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ReverseProxy__Clusters__identity__Destinations__primary__Address: http://identity-api:8080
+    ports:
+      - "5000:8080"
+    depends_on:
+      - identity-api
+
+  web:
+    build:
+      context: src/Web/bms-web
+    ports:
+      - "8080:80"
+    depends_on:
+      - api-gateway
+
+volumes:
+  sqlserver-data:
